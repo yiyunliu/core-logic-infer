@@ -175,6 +175,25 @@
                        (type-nocheck-openo k x ?e0 ?e0-opened)
                            (type-nocheck-openo k x ?e1 ?e1-opened))))
 
+
+(defne type-nocheck-sub-openo [k x t t-opened]
+  ;; open
+  ([_ _ 'bool 'bool])
+  ([_ _ ['bv k] x])
+  ([_ _ ['bv ?k] _] (!= ?k k))
+  ([_ _ ['fv ?x] ['fv ?x]])
+  ([_ _ ['∏ ?e] _] (fresh (?e-opened)
+                     (== ['∏ ?e-opened] t-opened)
+                     (type-nocheck-openo (list 'S k) x ?e ?e-opened)))
+  ;; bug bug bug!!
+  ([_ _ [?e0 '-> ?e1] _] (fresh (?e0-opened ?e1-opened)
+                       (== t-opened (list ?e0-opened '-> ?e1-opened))
+                       (type-nocheck-openo k x ?e0 ?e0-opened)
+                           (type-nocheck-openo k x ?e1 ?e1-opened))))
+
+(defn type-sub-openo [x t t-opened]
+  (type-nocheck-sub-openo 'Z x t t-opened))
+
 (defne type-nocheck-closeo [k x t t-closed]
   ;; open
   ([_ _ _ _] (boolo t) (== t-closed t))
@@ -228,6 +247,12 @@
    (fresh (?ctxo)
      (conso ?a ?ctxo ctxo)
      (map-fsto ?ctx ?ctxo))))
+
+(defne not-membero [x xs]
+  ([_ []])
+  ([_ [?x . ?xs]]
+   (!= ?x x)
+   (not-membero x ?xs)))
 
 (defne map-sndo [ctx ctxo]
   ([[] []])
@@ -306,51 +331,87 @@
     (dedupo A-ctx-diff diff-deduped)
     (close-with-fvarso diff-deduped A A-generalized)))
 
-(defne typing-state-o [gen ctx actx e B]
+(defne typing-state-o [gen gen-out ctx actx e B]
   ;; t-var
-  ([['fv x] _ [] _ _ ]
+  ([_ _ _ _ ['fv x] B]
    (fresh [A]
      (lookupo x A ctx)
-     (application-subtypingo actx A B)))
+     (application-subtypingo gen gen-out actx A B)))
   
   ;; t-int
-  ([_ _ _ _ 'bool]
+  ([gen gen _ [] _ 'bool]
    (boolo e))
   
   ;; t-lam
-  ([_ ctx [?A .  ?actx] ['λ e] [?A '-> ?B]]
+  ([_ _ ctx [?A .  ?actx] ['λ e] [?A '-> ?B]]
    (fresh [x ?ctx]
      (== x ['S gen])
      (conso [x ?A] ctx ?ctx)
-     (typing-state-o x ?ctx actx e ?B)))
+     (typing-state-o x gen-out  ?ctx actx e ?B)))
 
 
   ;; t-lam2
-  ([_ ctx [] ['λ e] [?t '-> ?B]]
+  ([_ _ ctx [] ['λ e] [?t '-> ?B]]
    (fresh [x ?ctx]
      (== x ['S gen])
      (conso [x ?t] ctx ?ctx)
-     (typing-state-o x ?ctx actx e ?B)
+     (typing-state-o x gen-out ?ctx actx e ?B)
      (monotypeo ?t)))
 
   ;; t-lamann1
- ([_ ctx [] ['λ ?A e] [?A '-> ?B]]
+ ([_ _ ctx [] ['λ ?A e] [?A '-> ?B]]
    (fresh [x ?ctx]
      (== x ['S gen])
      (conso [x ?A] ctx ?ctx)
-     (typing-state-o x ?ctx actx e ?B)))
+     (typing-state-o x gen-out ?ctx actx e ?B)))
 
-  ;; t-lamann2
- ([_ ctx [?C . ?actx] ['λ ?A e] [?C '-> ?B]]
-   (fresh [x ?ctx]
+ ;; t-lamann2
+ ([_ _ ctx [?C . ?actx] ['λ ?A e] [?C '-> ?B]]
+   (fresh [x ?ctx ?gen-out]
      (== x ['S gen])
      (conso [x ?A] ctx ?ctx)
-     (subtypingo ?C ?A)     
-     (typing-state-o x ?ctx actx e ?B)))
+     (subtypingo gen ?gen-out ?C ?A)     
+     (typing-state-o ?gen-out gen-out ?ctx actx e ?B)))
 
-  ;; t-gen
-  ()
+  ;; t-gen is pulled out
+
+  ;; t-app
+  ([_ _ ctx actx ['ap ?e1 ?e2] ?C]
+   (fresh [?A ?B ?gen-out0 ?actx]
+     (typing-state-o gen ?gen-out0 ctx [] ?e2 ?A)
+     (t-geno ctx ?A ?B)
+     (conso ?B actx ?actx)
+     (typing-state-o ?gen-out0 gen-out ctx actx ?e1 [?B '-> ?C])))
   )
+
+(defne subtypingo [gen gen-out t0 t1]
+  ;; s-int
+  ([gen gen 'bool 'bool])
+
+  ;; s-var
+  ([gen gen ['fv ?x] ['fv ?x]])
+
+  ;; s-forallr
+  ([_ _ ?A ['∏ ?B]]
+   (fresh [?new-gen ?B-opened ?fvs]
+     (== ?new-gen ['S gen] ?fvs)
+     (type-openo ?new-gen ?B ?B-opened)
+     (type-fvo ?B ?fvs)
+     (not-membero ?new-gen ?fvs)
+     (subtypingo ?new-gen gen-out ?A ?B-opened)))
+
+  ;; s-foralll
+  ([_ _ ['∏ ?A] ?B]
+   (fresh [?t ?A-opened]
+     (type-sub-openo ?t ?A ?A-opened)
+     (subtypingo gen gen-out ?A-opened ?B)
+     (monotypeo ?t)))
+
+  ;; s-fun
+  ([_ _ [?A '-> ?B] [?C '-> ?D]]
+   (fresh [?gen-out]
+     (subtypingo gen ?gen-out ?C ?A)
+     (subtypingo ?gen-out gen-out ?B ?D))))
 
 (defn typingo [ctx actx e B]
   (typing-state-o 'Z ctx actx e B))
