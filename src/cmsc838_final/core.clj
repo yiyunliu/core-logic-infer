@@ -404,14 +404,31 @@
   ([_ _ ['∏ ?A] ?B]
    (fresh [?t ?A-opened]
      (type-sub-openo ?t ?A ?A-opened)
-     (subtypingo gen gen-out ?A-opened ?B)
-     (monotypeo ?t)))
+     (monotypeo ?t)
+     (subtypingo gen gen-out ?A-opened ?B)))
 
   ;; s-fun
   ([_ _ [?A '-> ?B] [?C '-> ?D]]
    (fresh [?gen-out]
      (subtypingo gen ?gen-out ?C ?A)
      (subtypingo ?gen-out gen-out ?B ?D))))
+
+(defne application-subtypingo [gen gen-out actx t0 t1]
+  ;; s-empty
+  ([gen gen [] t0 t0])
+
+  ;; s-foralll2
+  ([_ _ [?C . ?actx] ['∏ ?A] ?B]
+   (fresh [?t ?A-opened]
+     (monotypeo ?t)
+     (type-sub-openo ?t ?A ?A-opened)
+     (application-subtypingo gen gen-out actx ?A-opened ?B)))
+
+  ;; s-sfun2
+  ([_ _ [?C . ?actx] [?A '-> ?B] [?C '-> ?D]]
+   (fresh [?gen-out]
+     (subtypingo gen ?gen-out ?C ?A)
+     (application-subtypingo ?gen-out ?actx ?B ?D))))
 
 (defn typingo [ctx actx e B]
   (typing-state-o 'Z ctx actx e B))
