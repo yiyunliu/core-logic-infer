@@ -114,7 +114,7 @@
   ;; open
   ([_ _ _ _] (boolo t) (== t-opened t))
   ([_ _ ['bv k] ['fv x]])
-  ([_ _ ['bv ?k] _] (lto ?k k))
+  ([_ _ ['bv ?k] _] (!= ?k k))
   ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['λ ?e] _] (fresh (?e-opened)
                      (== ['λ ?e-opened] t-opened)
@@ -128,9 +128,9 @@
 (defne term-nocheck-closeo [k x t t-closed]
   ;; open
   ([_ _ _ _] (boolo t) (== t-closed t))
-  ;; ([_ _ ['bv ?k] ['fv x]] (== ?k k))
-  ([_ _ ['bv ?k] t])
+  ([_ _ ['bv _] t])
   ([_ _ ['fv x] ['bv k]])
+  ([_ _ ['fv ?x] ['bv k]] (!= ?x x))
   ([_ _ ['λ ?e] _] (fresh (?e-closed)
                      (== ['λ ?e-closed] t-closed)
                      (term-nocheck-closeo (list 'S k) x ?e ?e-closed)))
@@ -150,3 +150,43 @@
   (term-nocheck-closeo 'Z x t t-closed))
 
 ;; (run* [q] (term-closeo 'x  '(λ (fv x)) q))
+
+
+(defne type-nocheck-openo [k x t t-opened]
+  ;; open
+  ([_ _ 'bool 'bool])
+  ([_ _ ['bv k] ['fv x]])
+  ([_ _ ['bv ?k] _] (!= ?k k))
+  ([_ _ ['fv ?x] ['fv ?x]])
+  ([_ _ ['Λ ?e] _] (fresh (?e-opened)
+                     (== ['Λ ?e-opened] t-opened)
+                     (type-nocheck-openo (list 'S k) x ?e ?e-opened)))
+  ;; bug bug bug!!
+  ([_ _ [?e0 '-> ?e1] _] (fresh (?e0-opened ?e1-opened)
+                       (== t-opened (list ?e0-opened '-> ?e1-opened))
+                       (type-nocheck-openo k x ?e0 ?e0-opened)
+                           (type-nocheck-openo k x ?e1 ?e1-opened))))
+
+(defne type-nocheck-closeo [k x t t-closed]
+  ;; open
+  ([_ _ _ _] (boolo t) (== t-closed t))
+  ([_ _ ['bv ?k] t])
+  ([_ _ ['fv x] ['bv k]])
+  ([_ _ ['fv ?x] ['bv k]] (!= ?x x))
+  ([_ _ ['Λ ?e] _] (fresh (?e-closed)
+                     (== ['Λ ?e-closed] t-closed)
+                     (type-nocheck-closeo (list 'S k) x ?e ?e-closed)))
+  ;; bug bug bug!!
+  ([_ _ [?e0 '-> ?e1] _] (fresh (?e0-closed ?e1-closed)
+                       (== t-closed (list ?e0-closed '-> ?e1-closed))
+                       (type-nocheck-closeo k x ?e0 ?e0-closed)
+                       (type-nocheck-closeo k x ?e1 ?e1-closed))))
+
+
+(defn type-openo [x t t-opened]
+  (type-nocheck-openo 'Z x t t-opened))
+
+
+;; can't be defined in types of openo
+(defn type-closeo [x t t-closed]
+  (type-nocheck-closeo 'Z x t t-closed))
