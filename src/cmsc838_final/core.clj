@@ -3,6 +3,7 @@
   (:use clojure.core.logic)
   (:require [clojure.core.logic.fd :as fd])
   (:require [clojure.core.match :refer [match]])
+  (:require [clojure.core.logic.nominal :as nom])
   (:gen-class))
 
 (defn -main
@@ -114,6 +115,9 @@
 (def type-fst
   '(∏ (∏ ((bv (S Z)) -> ((bv Z) -> (bv (S Z)))))))
 
+(def type-fst-v2
+  '[∏ [∏ ([bv Z] -> ([bv (S Z)] -> [bv Z]))]])
+
 ;; (run* [q] (typeo type-fst))
 
 
@@ -136,7 +140,7 @@
   ;; open
   ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['bv k] ['fv x]])
-  ([_ _ ['bv ?k] _] (!= ?k k))
+  ([_ _ ['bv ?k] t] (!= ?k k))
   ([_ _ ['λ ?e] _] (fresh (?e-opened)
                      (== ['λ ?e-opened] t-opened)
                      (term-nocheck-openo (list 'S k) x ?e ?e-opened)))
@@ -184,7 +188,7 @@
   ;; open
   ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['bv k] ['fv x]])
-  ([_ _ ['bv ?k] _] (!= ?k k))
+  ([_ _ ['bv ?k] t] (!= ?k k))
   ([_ _ ['∏ ?e] _] (fresh (?e-opened)
                      (== ['∏ ?e-opened] t-opened)
                      (type-nocheck-openo (list 'S k) x ?e ?e-opened)))
@@ -199,7 +203,7 @@
 (defne type-nocheck-sub-openo [k x t t-opened]
   ;; open
   ([_ _ ['bv k] x])
-  ([_ _ ['bv ?k] _] (!= ?k k))
+  ([_ _ ['bv ?k] t] (!= ?k k))
   ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['∏ ?e] _] (fresh (?e-opened)
                      (== ['∏ ?e-opened] t-opened)
@@ -352,11 +356,6 @@
     (close-with-fvarso diff-deduped A A-generalized)))
 
 (defne typing-state-o [gen gen-out ctx actx e B]
-  ;; t-var
-  ([_ _ _ _ ['fv x] B]
-   (fresh [A]
-     (lookupo x A ctx)
-     (application-subtypingo gen gen-out actx A B)))
   
   ;; t-int
   ([gen gen _ [] _ 'bool]
@@ -364,6 +363,7 @@
   
   ;; t-lam
   ([_ _ ctx [?A .  ?actx] ['λ ?e] [?A '-> ?B]]
+   ;; fail
    (fresh [x _ ?e-opened]
      (== x ['S gen])
      (term-openo x ?e ?e-opened)
@@ -374,6 +374,7 @@
   ([_ _ ctx [] ['λ ?e] [?t '-> ?B]]
    (fresh [x ?e-opened]
      ;; (== ?B ?e)
+     ;; (== B [x gen-out (llist [x ?t] ctx) actx ?e-opened ?B])
      (== x ['S gen])
      (term-openo x ?e ?e-opened)
      (typing-state-o x gen-out (llist [x ?t] ctx) actx ?e-opened ?B)
@@ -405,15 +406,14 @@
      (typing-state-o gen ?gen-out0 ctx [] ?e2 ?A)
      (t-geno ctx ?A ?B)
      (conso ?B actx ?actx)
-     (typing-state-o ?gen-out0 gen-out ctx ?actx ?e1 [?B '-> ?C]))))
+     (typing-state-o ?gen-out0 gen-out ctx ?actx ?e1 [?B '-> ?C])))
+  ;; t-var
+  ([_ _ _ _ ['fv x] B]
+   (fresh [A]
+     (lookupo x A ctx)
+     (application-subtypingo gen gen-out actx A B))))
 
 (defne subtypingo [gen gen-out t0 t1]
-  ;; s-int
-  ([gen gen ['fv ?x] ['fv ?x]])
-
-  ;; s-var
-  ([gen gen 'bool 'bool])
-
   ;; s-forallr
   ([_ _ ?A ['∏ ?B]]
    (fresh [?new-gen ?B-opened ?fvs]
@@ -434,12 +434,15 @@
   ([_ _ [?A '-> ?B] [?C '-> ?D]]
    (fresh [?gen-out]
      (subtypingo gen ?gen-out ?C ?A)
-     (subtypingo ?gen-out gen-out ?B ?D))))
+     (subtypingo ?gen-out gen-out ?B ?D)))
+
+  ;; s-var
+  ([gen gen ['fv ?x] ['fv ?x]])
+
+  ;; s-bool
+  ([gen gen 'bool 'bool]))
 
 (defne application-subtypingo [gen gen-out actx t0 t1]
-  ;; s-empty
-  ([gen gen [] t0 t0])
-
   ;; s-foralll2
   ([_ _ [?C . ?actx] ['∏ ?A] ?B]
    (fresh [?t ?A-opened]
@@ -451,12 +454,14 @@
   ([_ _ [?C . ?actx] [?A '-> ?B] [?C '-> ?D]]
    (fresh [?gen-out]
      (subtypingo gen ?gen-out ?C ?A)
-     (application-subtypingo ?gen-out gen-out ?actx ?B ?D))))
+     (application-subtypingo ?gen-out gen-out ?actx ?B ?D)))
+
+  ;; s-empty
+  ([gen gen [] t0 t0]))
 
 (defn typingo [ctx actx e B]
-  (fresh [gen-out ?B]
-    (typing-state-o 'Z gen-out ctx actx e ?B)
-    (t-geno ctx ?B B)))
+  (fresh [gen-out]
+    (typing-state-o 'Z gen-out ctx actx ['ap term-id e] B)))
 
 
 (defn infer-with-ctx-n [n ctx actx t]
@@ -466,7 +471,7 @@
   (infer-with-ctx-n 1))
 
 (defn synth-1 [t]
-  (run 1 [q] (typingo [] [] q t) (termo t)))
+  (run 1 [q] (typingo [] [] q t) (termo q)))
 
 ;; (run 1 [q] (typingo [['x 'bool]] [] ['fv 'x] q))
 
@@ -475,4 +480,6 @@
 ;; (run 1 [q] (typingo ['(x (∏ ([bv Z] -> [bv Z])))] [] ['ap ['fv 'x] true]  q))
 
 ;; (synth-1 '(∏ ([bv Z] -> [bv Z])))
+
+
 
