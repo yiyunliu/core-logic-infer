@@ -54,6 +54,24 @@
        (typeo ?body))))
   (['bool]))
 
+(defne not-forall-typeo [t]
+  ([['v ?i]])
+  ([[?t0 '-> ?t1]])
+  (['bool]))
+
+(defne -closed-typeo [t T]
+  ([['v ?i] _] (nom/hash ?i T))
+  ([[?t0 '-> ?t1] _] (-closed-typeo ?t0 T) (-closed-typeo ?t1 T))
+  ([['∏ ?t] _]
+   (fresh [?body]
+     (nom/fresh [x]
+       (== ?t (nom/tie x ?body))
+       (-closed-typeo ?body T))))
+  (['bool _]))
+
+(defn closed-typeo [t]
+  (-closed-typeo t t))
+
 ;; fst
 ;; (run 1 [q] (nom/fresh [x y] (typeo ['∏ (nom/tie x ['∏ (nom/tie y [['v x] '-> [['v y] '-> ['v x]]])])])))
 
@@ -86,27 +104,6 @@
 (declare subtypingo)
 (declare application-subtypingo)
 
-
-
-(defne map-fsto [ctx ctxo]
-  ([[] []])
-  ([[[?a ?b] . ?ctx] _]
-   (fresh (?ctxo)
-     (conso ?a ?ctxo ctxo)
-     (map-fsto ?ctx ?ctxo))))
-
-(defne not-membero [x xs]
-  ([_ []])
-  ([_ [?x . ?xs]]
-   (!= ?x x)
-   (not-membero x ?xs)))
-
-(defne map-sndo [ctx ctxo]
-  ([[] []])
-  ([[[?a ?b] . ?ctx] _]
-   (fresh (?ctxo)
-     (conso ?b ?ctxo ctxo)
-     (map-sndo ?ctx ?ctxo))))
 
 ;; i think it's more efficient to construct a list
 ;; and check x \in list than checking x \in t
@@ -204,6 +201,7 @@
    (nom/fresh [x]
      (fresh [?body ?A]
        (== e ['λ ?A (nom/tie x ?body)])
+       (closed-typeo ?A)
        (subtypingo ?C ?A)
        (typingo (llist [x ?A] ctx) ?actx ?body ?B))))
 
@@ -212,6 +210,7 @@
    (nom/fresh [x]
      (fresh [?body ?A]
        (== e ['λ ?A (nom/tie x ?body)])
+       (closed-typeo ?A)
        (typingo (llist [x ?A] ctx) actx ?body ?B))))
 
   ;; t-gen is pulled out
@@ -232,6 +231,7 @@
 (defne subtypingo [t0 t1]
   ;; s-forallr
   ([_ _]
+   (not-forall-typeo t0)
    (nom/fresh [x]
      (fresh [?body]
        (== t1 ['∏ (nom/tie x ?body)])
@@ -274,39 +274,35 @@
   ;; s-empty
   ([[] t0 t0]))
 
-
-
-(defn synth-1 [t]
-  (run 1 [q] (typingo [] [] q t) (termo q)))
+(defn gen-typingo [ctx actx e t]
+  (fresh [?t]
+    (typingo ctx actx e ?t)
+    (t-geno ctx ?t t)))
 
 ;; (run 1 [q] (typingo [['x 'bool]] [] ['fv 'x] q))
 
+;; id infer
+(run 1 [q] (nom/fresh [x]
+             (gen-typingo [] [] ['λ (nom/tie x ['v x])] )))
 
-;; fst
-(run 1 [q] (nom/fresh [x y]
+;; fst infer
+(run 2 [q] (nom/fresh [x y]
+             (gen-typingo [] [] ['λ (nom/tie x ['λ (nom/tie y ['v x])])] q)))
+
+;; ['ap id fst] check
+(run 2 [q] (nom/fresh [x y]
              (fresh [?t]
-               (typingo [] [] ['λ (nom/tie x ['λ (nom/tie y ['v x])])] ?t)
-               (t-geno [] ?t q))))
+               (typingo [] [] ['ap ['λ (nom/tie x ['v x])] ['λ (nom/tie x ['λ (nom/tie y ['v x])])]] q))))
 
-;; snd
+;; snd infer
 (run 1 [q] (nom/fresh [x y]
              (fresh [?t]
                (typingo [] [] ['λ (nom/tie x ['λ (nom/tie y ['v y])])] ?t)
                (t-geno [] ?t q))))
 
-;; fst-check
+;; fst check
 (run 1 [q] (nom/fresh [x y]
              (typingo [] []
                       ['ap ['λ (nom/tie x ['v x])] ['λ (nom/tie x ['λ (nom/tie y ['v x])])]]
                       ['∏ (nom/tie x ['∏ (nom/tie y [['v x] '-> [['v y] '-> ['v x]]])])])))
 
-
-;; (run 1 [q] (typingo ['(x (∏ ([bv Z] -> [bv Z])))] [] ['ap ['fv 'x] true]  q))
-
-;; (synth-1 '(∏ ([bv Z] -> [bv Z])))
-
-
-
-;; synth-fst, does not terminate
-;; (run 1 [q] (nom/fresh [x y]
-;;              (typingo [] [] q ['∏ (nom/tie x ['∏ (nom/tie y [['v x] '-> [['v y] '-> ['v x]]])])])))
