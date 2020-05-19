@@ -177,113 +177,102 @@
                (t-geno [[v ['v x]]] [['v x] '-> [['v y] '-> ['v x]]] q))))
 
 
-(defne typing-state-o [ctx actx e B]
+(defne typingo [ctx actx e B]
   
-  ;; t-int
-  ([gen gen _ [] _ 'bool]
+  ;; t-bool
+  ([_ [] _ 'bool]
    (boolo e))
   
   ;; t-lam
-  ([_ _ ctx [?A .  ?actx] ['λ ?e] [?A '-> ?B]]
-   ;; fail
-   (fresh [x _ ?e-opened]
-     (== x ['S gen])
-     (term-openo x ?e ?e-opened)
-     (typing-state-o x gen-out (llist [x ?A] ctx) ?actx ?e-opened ?B)))
+  ([ctx [?A .  ?actx] _ [?A '-> ?B]]
+   (nom/fresh [x]
+     (fresh [?body]
+       (== e ['λ (nom/tie x ?body)])
+       (typingo (llist [x ?A] ctx) ?actx ?body ?B))))
 
 
   ;; t-lam2
-  ([_ _ ctx [] ['λ ?e] [?t '-> ?B]]
-   (fresh [x ?e-opened]
-     ;; (== ?B ?e)
-     ;; (== B [x gen-out (llist [x ?t] ctx) actx ?e-opened ?B])
-     (== x ['S gen])
-     (term-openo x ?e ?e-opened)
-     (typing-state-o x gen-out (llist [x ?t] ctx) actx ?e-opened ?B)
+  ([ctx [] _ [?t '-> ?B]]
+   (nom/fresh [x]
      (monotypeo ?t)
-     ))
+     (fresh [?body]
+       (== e ['λ (nom/tie x ?body)])
+       (typingo (llist [x ?t] ctx) actx ?body ?B))))
 
   ;; t-lamann1
-  ([_ _ ctx [?C . ?actx] ['λ ?A ?e] [?C '-> ?B]]
-   (fresh [x ?gen-out ?e-opened]
-     (== x ['S gen])
-     (closed-typeo ?A)
-     (term-openo x ?e ?e-opened)
-     (subtypingo gen ?gen-out ?C ?A)     
-     (typing-state-o ?gen-out gen-out (llist [x ?A] ctx) ?actx ?e-opened ?B)))
+  ([ctx [?C . ?actx] _ [?C '-> ?B]]
+   (nom/fresh [x]
+     (fresh [?body ?A]
+       (== e ['λ ?A (nom/tie x ?body)])
+       (subtypingo ?C ?A)
+       (typingo (llist [x ?A] ctx) ?actx ?body ?B))))
 
   ;; t-lamann2
-  ([_ _ ctx [] ['λ ?A ?e] [?A '-> ?B]]
-   (fresh [x ?e-opened]
-     (== x ['S gen])
-     (closed-typeo ?A)
-     (term-openo x ?e ?e-opened)
-     (typing-state-o x gen-out (llist [x ?A] ctx) actx ?e-opened ?B)))
+  ([ctx [] _ [?A '-> ?B]]
+   (nom/fresh [x]
+     (fresh [?body ?A]
+       (== e ['λ ?A (nom/tie x ?body)])
+       (typingo (llist [x ?A] ctx) actx ?body ?B))))
 
   ;; t-gen is pulled out
 
   ;; t-app
-  ([_ _ ctx actx ['ap ?e1 ?e2] ?C]
-   (fresh [?A ?B ?gen-out0 ?actx]
-     (typing-state-o gen ?gen-out0 ctx [] ?e2 ?A)
+  ([ctx actx ['ap ?e1 ?e2] ?C]
+   (fresh [?A ?B]
+     (typingo ctx [] ?e2 ?A)
      (t-geno ctx ?A ?B)
-     (conso ?B actx ?actx)
-     (typing-state-o ?gen-out0 gen-out ctx ?actx ?e1 [?B '-> ?C])))
+     (typingo ctx (llist ?B actx) ?e1 [?B '-> ?C])))
+
   ;; t-var
-  ([_ _ _ _ ['fv x] B]
+  ([_ _ ['fv x] B]
    (fresh [A]
      (lookupo x A ctx)
-     (application-subtypingo gen gen-out actx A B))))
+     (application-subtypingo actx A B))))
 
-(defne subtypingo [gen gen-out t0 t1]
+(defne subtypingo [t0 t1]
   ;; s-forallr
-  ([_ _ ?A ['∏ ?B]]
-   (fresh [?new-gen ?B-opened ?fvs]
-     (== ?new-gen ['S gen])
-     (type-openo ?new-gen ?B ?B-opened)
-     (type-fvo ?B ?fvs)
-     (not-membero ?new-gen ?fvs)
-     (subtypingo ?new-gen gen-out ?A ?B-opened)))
+  ([_ _]
+   (nom/fresh [x]
+     (fresh [?body]
+       (== t1 ['∏ (nom/tie x ?body)])
+       (nom/hash x t0)
+       (subtypingo t0 ?body))))
 
   ;; s-foralll
-  ([_ _ ['∏ ?A] ?B]
-   (fresh [?t ?A-opened]
-     (type-sub-openo ?t ?A ?A-opened)
-     (monotypeo ?t)
-     (subtypingo gen gen-out ?A-opened ?B)))
+  ([_ _]
+   (nom/fresh [x]
+     (fresh [?t ?body]
+       (== t0 ['∏ (nom/tie x ?body)])
+       (monotypeo ?t)
+       (subtypingo ?body t1))))
 
   ;; s-fun
-  ([_ _ [?A '-> ?B] [?C '-> ?D]]
-   (fresh [?gen-out]
-     (subtypingo gen ?gen-out ?C ?A)
-     (subtypingo ?gen-out gen-out ?B ?D)))
+  ([[?A '-> ?B] [?C '-> ?D]]
+   (subtypingo ?C ?A)
+   (subtypingo ?B ?D))
 
   ;; s-var
-  ([gen gen ['fv ?x] ['fv ?x]])
+  ([['fv ?x] ['fv ?x]])
 
   ;; s-bool
-  ([gen gen 'bool 'bool]))
+  (['bool 'bool]))
 
-(defne application-subtypingo [gen gen-out actx t0 t1]
+(defne application-subtypingo [actx t0 t1]
   ;; s-foralll2
-  ([_ _ [?C . ?actx] ['∏ ?A] ?B]
-   (fresh [?t ?A-opened]
-     (monotypeo ?t)
-     (type-sub-openo ?t ?A ?A-opened)
-     (application-subtypingo gen gen-out actx ?A-opened ?B)))
+  ([[?C . ?actx] _ _]
+   (nom/fresh [x]
+     (fresh [?t ?body]
+       (== t0 ['∏ (nom/tie x ?body)])
+       (monotypeo ?t)
+       (application-subtypingo actx ?body t1))))
 
   ;; s-sfun2
-  ([_ _ [?C . ?actx] [?A '-> ?B] [?C '-> ?D]]
-   (fresh [?gen-out]
-     (subtypingo gen ?gen-out ?C ?A)
-     (application-subtypingo ?gen-out gen-out ?actx ?B ?D)))
+  ([[?C . ?actx] [?A '-> ?B] [?C '-> ?D]]
+   (subtypingo ?C ?A)
+   (application-subtypingo ?actx ?B ?D))
 
   ;; s-empty
-  ([gen gen [] t0 t0]))
-
-(defn typingo [ctx actx e B]
-  (fresh [gen-out]
-    (typing-state-o 'Z gen-out ctx actx ['ap term-id e] B)))
+  ([[] t0 t0]))
 
 
 (defn infer-with-ctx-n [n ctx actx t]
