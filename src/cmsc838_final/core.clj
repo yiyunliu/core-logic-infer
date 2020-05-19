@@ -68,27 +68,47 @@
 ;; syntax for our terms
 ;; keeps track of the # of lambdas
 (defne term-i-o [m-i e]
-  ([_ _] (boolo e))
-  ([_ ['bv i]] (lto i m-i)) ;; not necessary to check i is nat in this case
   ([_ ['fv i]])
+  ([_ ['bv i]] (lto i m-i)) ;; not necessary to check i is nat in this case
   ([_ ['λ ?e]] (term-i-o (list 'S m-i) ?e))
   ([_ ['λ ?A ?e]] (typeo ?A) (term-i-o (list 'S m-i) ?e))
-  ([_ ['ap e0 e1]] (term-i-o m-i e0) (term-i-o m-i e1)))
+  ([_ ['ap e0 e1]] (term-i-o m-i e0) (term-i-o m-i e1))
+  ([_ _] (boolo e)))
 
 (defn termo [e]
   (term-i-o 'Z e))
 
+(defne closed-term-i-o [m-i e]
+  ([_ ['bv i]] (lto i m-i)) ;; not necessary to check i is nat in this case
+  ([_ ['λ ?e]] (closed-term-i-o (list 'S m-i) ?e))
+  ([_ ['λ ?A ?e]] (typeo ?A) (closed-term-i-o (list 'S m-i) ?e))
+  ([_ ['ap e0 e1]] (closed-term-i-o m-i e0) (closed-term-i-o m-i e1))
+  ([_ _] (boolo e)))
+
+(defn closed-termo [e]
+  (closed-term-i-o 'Z e))
+
 
 (defne type-i-o [m-i t]
-  ([_ 'bool])
-  ([_ ['∏ ?t]] (type-i-o (list 'S m-i) ?t))
+  ([_ ['fv ?i]])
   ([_ [?t0 '-> ?t1]] (type-i-o m-i ?t0) (type-i-o m-i ?t1))
+  ([_ ['∏ ?t]] (type-i-o (list 'S m-i) ?t))
   ([_ ['bv ?i]] (lto ?i m-i))
-  ([_ ['fv ?i]]))
+  ([_ 'bool]))
 
 
 (defn typeo [t]
   (type-i-o 'Z t))
+
+(defne closed-type-i-o [m-i t]
+  ([_ [?t0 '-> ?t1]] (closed-type-i-o m-i ?t0) (closed-type-i-o m-i ?t1))
+  ([_ ['∏ ?t]] (closed-type-i-o (list 'S m-i) ?t))
+  ([_ ['bv ?i]] (lto ?i m-i))
+  ([_ 'bool]))
+
+
+(defn closed-typeo [t]
+  (closed-type-i-o 'Z t))
 
 
 (def type-fst
@@ -104,9 +124,9 @@
 
 
 (defne monotypeo [t]
-  (['bool])
-  ([[?t0 '-> ?t1]] (monotypeo ?t0) (monotypeo ?t1))
-  ([['fv ?i]]))
+  ([['fv ?i]])
+  ([[?t0 '-> ?t1]] (monotypeo ?t0) (monotypeo ?t1))  
+  (['bool]))
 
 
 
@@ -114,39 +134,39 @@
 ;; precondition: t is a term
 (defne term-nocheck-openo [k x t t-opened]
   ;; open
-  ([_ _ _ _] (boolo t) (== t-opened t))
+  ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['bv k] ['fv x]])
   ([_ _ ['bv ?k] _] (!= ?k k))
-  ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['λ ?e] _] (fresh (?e-opened)
                      (== ['λ ?e-opened] t-opened)
                      (term-nocheck-openo (list 'S k) x ?e ?e-opened)))
   ([_ _ ['λ ?A ?e] _] (fresh (?e-opened)
-                     (== ['λ ?A ?e-opened] t-opened)
-                     (term-nocheck-openo (list 'S k) x ?e ?e-opened)))
-  ;; bug bug bug!!
+                        (== ['λ ?A ?e-opened] t-opened)
+                        (term-nocheck-openo (list 'S k) x ?e ?e-opened)))
   ([_ _ ['ap ?e0 ?e1] _] (fresh (?e0-opened ?e1-opened)
-                       (== t-opened (list 'ap ?e0-opened ?e1-opened))
-                       (term-nocheck-openo k x ?e0 ?e0-opened)
-                           (term-nocheck-openo k x ?e1 ?e1-opened))))
+                           (== t-opened (list 'ap ?e0-opened ?e1-opened))
+                           (term-nocheck-openo k x ?e0 ?e0-opened)
+                           (term-nocheck-openo k x ?e1 ?e1-opened)))
+  ;; bug bug bug!!
+  ([_ _ _ _] (boolo t) (== t-opened t)))
 
 (defne term-nocheck-closeo [k x t t-closed]
   ;; open
-  ([_ _ _ _] (boolo t) (== t-closed t))
-  ([_ _ ['bv _] t])
   ([_ _ ['fv x] ['bv k]])
   ([_ _ ['fv ?x] ['bv k]] (!= ?x x))
+  ([_ _ ['bv _] t])
   ([_ _ ['λ ?e] _] (fresh (?e-closed)
                      (== ['λ ?e-closed] t-closed)
-                     (term-nocheck-closeo (list 'S k) x ?e ?e-closed)))
+                     (term-nocheck-closeo ['S k] x ?e ?e-closed)))
   ([_ _ ['λ ?A ?e] _] (fresh (?e-closed)
-                     (== ['λ ?A ?e-closed] t-closed)
-                     (term-nocheck-closeo (list 'S k) x ?e ?e-closed)))
-  ;; bug bug bug!!
+                        (== ['λ ?A ?e-closed] t-closed)
+                        (term-nocheck-closeo ['S k] x ?e ?e-closed)))
   ([_ _ ['ap ?e0 ?e1] _] (fresh (?e0-closed ?e1-closed)
-                       (== t-closed (list 'ap ?e0-closed ?e1-closed))
-                       (term-nocheck-closeo k x ?e0 ?e0-closed)
-                       (term-nocheck-closeo k x ?e1 ?e1-closed))))
+                           (== t-closed (list 'ap ?e0-closed ?e1-closed))
+                           (term-nocheck-closeo k x ?e0 ?e0-closed)
+                           (term-nocheck-closeo k x ?e1 ?e1-closed)))
+  ;; bug bug bug!!
+  ([_ _ _ _] (boolo t) (== t-closed t)))
 
 
 (defn term-openo [x t t-opened]
@@ -162,52 +182,52 @@
 
 (defne type-nocheck-openo [k x t t-opened]
   ;; open
-  ([_ _ 'bool 'bool])
+  ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['bv k] ['fv x]])
   ([_ _ ['bv ?k] _] (!= ?k k))
-  ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['∏ ?e] _] (fresh (?e-opened)
                      (== ['∏ ?e-opened] t-opened)
                      (type-nocheck-openo (list 'S k) x ?e ?e-opened)))
-  ;; bug bug bug!!
   ([_ _ [?e0 '-> ?e1] _] (fresh (?e0-opened ?e1-opened)
-                       (== t-opened (list ?e0-opened '-> ?e1-opened))
-                       (type-nocheck-openo k x ?e0 ?e0-opened)
-                           (type-nocheck-openo k x ?e1 ?e1-opened))))
+                           (== t-opened (list ?e0-opened '-> ?e1-opened))
+                           (type-nocheck-openo k x ?e0 ?e0-opened)
+                           (type-nocheck-openo k x ?e1 ?e1-opened)))
+  ;; bug bug bug!!
+  ([_ _ 'bool 'bool]))
 
 
 (defne type-nocheck-sub-openo [k x t t-opened]
   ;; open
-  ([_ _ 'bool 'bool])
   ([_ _ ['bv k] x])
   ([_ _ ['bv ?k] _] (!= ?k k))
   ([_ _ ['fv ?x] ['fv ?x]])
   ([_ _ ['∏ ?e] _] (fresh (?e-opened)
                      (== ['∏ ?e-opened] t-opened)
-                     (type-nocheck-openo (list 'S k) x ?e ?e-opened)))
-  ;; bug bug bug!!
+                     (type-nocheck-sub-openo (list 'S k) x ?e ?e-opened)))
   ([_ _ [?e0 '-> ?e1] _] (fresh (?e0-opened ?e1-opened)
-                       (== t-opened (list ?e0-opened '-> ?e1-opened))
-                       (type-nocheck-openo k x ?e0 ?e0-opened)
-                           (type-nocheck-openo k x ?e1 ?e1-opened))))
+                           (== t-opened (list ?e0-opened '-> ?e1-opened))
+                           (type-nocheck-sub-openo k x ?e0 ?e0-opened)
+                           (type-nocheck-sub-openo k x ?e1 ?e1-opened)))
+  ;; bug bug bug!!
+  ([_ _ 'bool 'bool]))
 
 (defn type-sub-openo [x t t-opened]
   (type-nocheck-sub-openo 'Z x t t-opened))
 
 (defne type-nocheck-closeo [k x t t-closed]
   ;; open
-  ([_ _ _ _] (boolo t) (== t-closed t))
-  ([_ _ ['bv ?k] t])
   ([_ x ['fv x] ['bv k]] )
+  ([_ _ ['bv ?k] t])
   ([_ _ ['fv ?x] t] (!= ?x x))
   ([_ _ ['∏ ?e] _] (fresh (?e-closed)
                      (== ['∏ ?e-closed] t-closed)
                      (type-nocheck-closeo (list 'S k) x ?e ?e-closed)))
-  ;; bug bug bug!!
   ([_ _ [?e0 '-> ?e1] _] (fresh (?e0-closed ?e1-closed)
-                       (== t-closed (list ?e0-closed '-> ?e1-closed))
-                       (type-nocheck-closeo k x ?e0 ?e0-closed)
-                       (type-nocheck-closeo k x ?e1 ?e1-closed))))
+                           (== t-closed (list ?e0-closed '-> ?e1-closed))
+                           (type-nocheck-closeo k x ?e0 ?e0-closed)
+                           (type-nocheck-closeo k x ?e1 ?e1-closed)))
+  ;; bug bug bug!!
+  ([_ _ _ _] (boolo t) (== t-closed t)))
 
 
 (defn type-openo [x t t-opened]
@@ -262,7 +282,7 @@
      (map-sndo ?ctx ?ctxo))))
 
 (defne type-fvo [t tvs]
-  (['bool []])
+  ([['fv ?i] [?i]])
   ([['∏ ?t] _] (type-fvo ?t tvs))
   ([[?t0 '-> ?t1] ?tvs]
    (fresh [?tvs0 ?tvs1]
@@ -270,18 +290,18 @@
      (type-fvo ?t1 ?tvs1)
      (appendo ?tvs0 ?tvs1 ?tvs)))
   ([['bv _] []])
-  ([['fv ?i] [?i]]))
+  (['bool []]))
 
 (defne term-fvo [e fvs]
-  ([_ _] (boolo e) (== fvs []))
-  ([['bv i] []]) ;; not necessary to check i is nat in this case
-  ([['fv i] [i]])
+  ([['bv i] []])
+  ([['fv i] [i]]) ;; not necessary to check i is nat in this case
   ([['λ ?e] _] (term-fvo ?e fvs))
   ([['λ _ ?e] _] (term-fvo ?e fvs))
   ([['ap e0 e1] _] (fresh [fvs0 fvs1]
                      (term-fvo e0 fvs0)
                      (term-fvo e1 fvs1)
-                     (appendo fvs0 fvs1 fvs))))
+                     (appendo fvs0 fvs1 fvs)))
+  ([_ _] (boolo e) (== fvs [])))
 
 (defne rem-allo [x xs ys]
   ([_ [] []])
@@ -343,35 +363,39 @@
    (boolo e))
   
   ;; t-lam
-  ([_ _ ctx [?A .  ?actx] ['λ e] [?A '-> ?B]]
-   (fresh [x ?ctx]
+  ([_ _ ctx [?A .  ?actx] ['λ ?e] [?A '-> ?B]]
+   (fresh [x _ ?e-opened]
      (== x ['S gen])
-     (conso [x ?A] ctx ?ctx)
-     (typing-state-o x gen-out  ?ctx actx e ?B)))
+     (term-openo x ?e ?e-opened)
+     (typing-state-o x gen-out (llist [x ?A] ctx) ?actx ?e-opened ?B)))
 
 
   ;; t-lam2
-  ([_ _ ctx [] ['λ e] [?t '-> ?B]]
-   (fresh [x ?ctx]
+  ([_ _ ctx [] ['λ ?e] [?t '-> ?B]]
+   (fresh [x ?e-opened]
+     ;; (== ?B ?e)
      (== x ['S gen])
-     (conso [x ?t] ctx ?ctx)
-     (typing-state-o x gen-out ?ctx actx e ?B)
-     (monotypeo ?t)))
+     (term-openo x ?e ?e-opened)
+     (typing-state-o x gen-out (llist [x ?t] ctx) actx ?e-opened ?B)
+     (monotypeo ?t)
+     ))
 
   ;; t-lamann1
- ([_ _ ctx [] ['λ ?A e] [?A '-> ?B]]
-   (fresh [x ?ctx]
+  ([_ _ ctx [?C . ?actx] ['λ ?A ?e] [?C '-> ?B]]
+   (fresh [x ?gen-out ?e-opened]
      (== x ['S gen])
-     (conso [x ?A] ctx ?ctx)
-     (typing-state-o x gen-out ?ctx actx e ?B)))
-
- ;; t-lamann2
- ([_ _ ctx [?C . ?actx] ['λ ?A e] [?C '-> ?B]]
-   (fresh [x ?ctx ?gen-out]
-     (== x ['S gen])
-     (conso [x ?A] ctx ?ctx)
+     (closed-typeo ?A)
+     (term-openo x ?e ?e-opened)
      (subtypingo gen ?gen-out ?C ?A)     
-     (typing-state-o ?gen-out gen-out ?ctx actx e ?B)))
+     (typing-state-o ?gen-out gen-out (llist [x ?A] ctx) ?actx ?e-opened ?B)))
+
+  ;; t-lamann2
+  ([_ _ ctx [] ['λ ?A ?e] [?A '-> ?B]]
+   (fresh [x ?e-opened]
+     (== x ['S gen])
+     (closed-typeo ?A)
+     (term-openo x ?e ?e-opened)
+     (typing-state-o x gen-out (llist [x ?A] ctx) actx ?e-opened ?B)))
 
   ;; t-gen is pulled out
 
@@ -381,20 +405,19 @@
      (typing-state-o gen ?gen-out0 ctx [] ?e2 ?A)
      (t-geno ctx ?A ?B)
      (conso ?B actx ?actx)
-     (typing-state-o ?gen-out0 gen-out ctx actx ?e1 [?B '-> ?C])))
-  )
+     (typing-state-o ?gen-out0 gen-out ctx ?actx ?e1 [?B '-> ?C]))))
 
 (defne subtypingo [gen gen-out t0 t1]
   ;; s-int
-  ([gen gen 'bool 'bool])
+  ([gen gen ['fv ?x] ['fv ?x]])
 
   ;; s-var
-  ([gen gen ['fv ?x] ['fv ?x]])
+  ([gen gen 'bool 'bool])
 
   ;; s-forallr
   ([_ _ ?A ['∏ ?B]]
    (fresh [?new-gen ?B-opened ?fvs]
-     (== ?new-gen ['S gen] ?fvs)
+     (== ?new-gen ['S gen])
      (type-openo ?new-gen ?B ?B-opened)
      (type-fvo ?B ?fvs)
      (not-membero ?new-gen ?fvs)
@@ -428,7 +451,28 @@
   ([_ _ [?C . ?actx] [?A '-> ?B] [?C '-> ?D]]
    (fresh [?gen-out]
      (subtypingo gen ?gen-out ?C ?A)
-     (application-subtypingo ?gen-out ?actx ?B ?D))))
+     (application-subtypingo ?gen-out gen-out ?actx ?B ?D))))
 
 (defn typingo [ctx actx e B]
-  (typing-state-o 'Z ctx actx e B))
+  (fresh [gen-out ?B]
+    (typing-state-o 'Z gen-out ctx actx e ?B)
+    (t-geno ctx ?B B)))
+
+
+(defn infer-with-ctx-n [n ctx actx t]
+  (run n [q] (typingo ctx actx t q) ))
+
+(defn infer-with-ctx-1 [ctx actx t]
+  (infer-with-ctx-n 1))
+
+(defn synth-1 [t]
+  (run 1 [q] (typingo [] [] q t) (termo t)))
+
+;; (run 1 [q] (typingo [['x 'bool]] [] ['fv 'x] q))
+
+;; (infer-with-ctx-n 2 [] [] '[λ [bv Z]])
+
+;; (run 1 [q] (typingo ['(x (∏ ([bv Z] -> [bv Z])))] [] ['ap ['fv 'x] true]  q))
+
+;; (synth-1 '(∏ ([bv Z] -> [bv Z])))
+

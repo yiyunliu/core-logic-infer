@@ -2,6 +2,8 @@
   (:require [clojure.test :refer :all]
             [cmsc838-final.core :refer :all]))
 
-(deftest a-test
-  (testing "FIXME, I fail."
-    (is (= 0 1))))
+
+(deftest test-typingo
+  (testing "t-var"
+    (is (= '(bool) (infer-with-ctx-1 [['x 'bool]] [] ['fv 'x])))
+    (is (= '(bool) (infer-with-ctx-1 [] [] '[λ [bv Z]])))))
