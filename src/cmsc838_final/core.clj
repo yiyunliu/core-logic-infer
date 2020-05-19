@@ -31,8 +31,8 @@
   ([['ap e0 e1]]
    (termo e0)
    (termo e1))
-  (['true])
-  (['false]))
+  ([true])
+  ([false]))
 
 ;; fst
 ;; (run 1 [q] (nom/fresh [x y] (termo ['λ (nom/tie x ['λ (nom/tie y ['v x])])])))
@@ -113,7 +113,7 @@
 ;; everytime
 (defne type-fvo [t tvs]
   ([['v ?i] [?i]])
-  ([['∏ ?t]]
+  ([['∏ ?t] _]
    (fresh [?body]
      (nom/fresh [x]
        (== ?t (nom/tie x ?body))
@@ -180,8 +180,8 @@
 (defne typingo [ctx actx e B]
   
   ;; t-bool
-  ([_ [] _ 'bool]
-   (boolo e))
+  ([_ [] true 'bool])
+  ([_ [] false 'bool])
   
   ;; t-lam
   ([ctx [?A .  ?actx] _ [?A '-> ?B]]
@@ -194,9 +194,9 @@
   ;; t-lam2
   ([ctx [] _ [?t '-> ?B]]
    (nom/fresh [x]
-     (monotypeo ?t)
      (fresh [?body]
        (== e ['λ (nom/tie x ?body)])
+       (monotypeo ?t)
        (typingo (llist [x ?t] ctx) actx ?body ?B))))
 
   ;; t-lamann1
@@ -224,7 +224,7 @@
      (typingo ctx (llist ?B actx) ?e1 [?B '-> ?C])))
 
   ;; t-var
-  ([_ _ ['fv x] B]
+  ([_ _ ['v x] B]
    (fresh [A]
      (lookupo x A ctx)
      (application-subtypingo actx A B))))
@@ -252,7 +252,7 @@
    (subtypingo ?B ?D))
 
   ;; s-var
-  ([['fv ?x] ['fv ?x]])
+  ([['v ?x] ['v ?x]])
 
   ;; s-bool
   (['bool 'bool]))
@@ -275,18 +275,31 @@
   ([[] t0 t0]))
 
 
-(defn infer-with-ctx-n [n ctx actx t]
-  (run n [q] (typingo ctx actx t q) ))
-
-(defn infer-with-ctx-1 [ctx actx t]
-  (infer-with-ctx-n 1))
 
 (defn synth-1 [t]
   (run 1 [q] (typingo [] [] q t) (termo q)))
 
 ;; (run 1 [q] (typingo [['x 'bool]] [] ['fv 'x] q))
 
-;; (infer-with-ctx-n 2 [] [] '[λ [bv Z]])
+
+;; fst
+(run 1 [q] (nom/fresh [x y]
+             (fresh [?t]
+               (typingo [] [] ['λ (nom/tie x ['λ (nom/tie y ['v x])])] ?t)
+               (t-geno [] ?t q))))
+
+;; snd
+(run 1 [q] (nom/fresh [x y]
+             (fresh [?t]
+               (typingo [] [] ['λ (nom/tie x ['λ (nom/tie y ['v y])])] ?t)
+               (t-geno [] ?t q))))
+
+;; fst-check
+(run 1 [q] (nom/fresh [x y]
+             (typingo [] []
+                      ['ap ['λ (nom/tie x ['v x])] ['λ (nom/tie x ['λ (nom/tie y ['v x])])]]
+                      ['∏ (nom/tie x ['∏ (nom/tie y [['v x] '-> [['v y] '-> ['v x]]])])])))
+
 
 ;; (run 1 [q] (typingo ['(x (∏ ([bv Z] -> [bv Z])))] [] ['ap ['fv 'x] true]  q))
 
@@ -294,3 +307,6 @@
 
 
 
+;; synth-fst, does not terminate
+;; (run 1 [q] (nom/fresh [x y]
+;;              (typingo [] [] q ['∏ (nom/tie x ['∏ (nom/tie y [['v x] '-> [['v y] '-> ['v x]]])])])))
