@@ -330,6 +330,40 @@
    (substo x e ?e0 ?e0-out)
    (substo x e ?e1 ?e1-out)))
 
+;; (run 1 [q]
+;;   (nom/fresh [f y n]
+;;     (fresh [zero -succ -succ-body -succ-body-body]
+;;       (== zero ['λ (nom/tie f ['λ (nom/tie y ['v y])])])
+;;       (== -succ ['λ (nom/tie n ['λ (nom/tie f ['λ (nom/tie y ['ap ['ap ['v n] ['v f] ] ['v y]])])])])
+;;       (== -succ-body ['λ (nom/tie f ['λ (nom/tie y ['ap ['ap ['v n] ['v f] ] ['v y]])])])
+;;       (== -succ-body-body ['λ (nom/tie y ['ap ['ap ['v n] ['v f] ] ['v y]])])
+;;       ;; (substo n zero -succ succ-subbed)
+;;       ;;      (call-by-nameo succ-subbed q)
+      
+;;       (call-by-nameo -succ-body-body q)))) 
+
+;; (run 1 [add succ T]
+;;   (nom/fresh [f y n]
+;;     (fresh [zero one two three -succ]
+;;       (== zero ['λ (nom/tie f ['λ (nom/tie y ['v y])])])
+;;       (== one ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['v y]])])])
+;;       (== two ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['v f] ['v y]]])])])
+;;       (== three ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['v f] ['ap ['v f] ['v y]]]])])])
+;;       (== -succ ['λ (nom/tie n ['λ (nom/tie f ['λ (nom/tie y ['ap ['ap ['v n] ['v f] ] ['v y]])])])])
+;;       ;; (gen-typingo [] [] -succ T)
+;;       ;; (call-by-nameo ['ap ['ap add zero] two] two)
+;;       ;; (call-by-nameo ['ap ['ap add two] zero] two)
+;;       ;; (call-by-nameo ['ap ['ap add one] two] three)
+;;       ;; (gen-typingo [] [] ['ap -succ one] T)
+;;       ;; (call-by-nameo ['ap ['ap ['v n] ['v f] ] ['v y]] succ)
+;;       (call-by-nameo ['ap -succ zero] add)
+;;       )))
+
+(defne not-lambdao [e]
+  ([['v _]])
+  ([['ap _ _]])
+  ([true])
+  ([false]))
 
 (defne call-by-nameo [e e-nf]
   ([true true])
@@ -344,10 +378,11 @@
         ((call-by-nameo ?e0 ['λ (nom/tie x ?body)])
          (substo x ?e1 ?body ?e-subst)
          (call-by-nameo ?e-subst e-nf))
-        ((fresh [y ?e1-out]
-           (call-by-nameo ?e0 ['v y])
+        ((fresh [y ?e0-out ?e1-out]
+           (not-lambdao ?e0-out)
+           (call-by-nameo ?e0 ?e0-out)
            (call-by-nameo ?e1 ?e1-out)
-           (== e-nf ['ap ['v y] ?e1-out])))))))
+           (== e-nf ['ap ?e0-out ?e1-out])))))))
 
   ([_ _]
    (nom/fresh [x]
@@ -370,10 +405,58 @@
   (call-by-nameo ['ap ['ap e false] true] true)
   (gen-typingo [] [] e T))
 
-;; (run 1 [e T]
-;;   (call-by-nameo ['ap e true] true)
-;;   (call-by-nameo ['ap e false] true)
-;;   (gen-typingo [] [] e T))
+
+(run 1 [e T]
+  (call-by-nameo ['ap e true] true)
+  (call-by-nameo ['ap e false] true)
+  (gen-typingo [] [] e T))
+
+;; ok. not terminating because we don't have bool elim
+;; (run 1 [e]
+;;   (fresh [flip]
+;;     (call-by-nameo ['ap flip true] false)
+;;     (call-by-nameo ['ap flip false] true)))
+
+
+;; zero
+(run 1 [q] (nom/fresh [f y]
+             (gen-typingo [] [] ['λ (nom/tie f ['λ (nom/tie y ['v y])])] q)))
+
+;; one
+(run 1 [q] (nom/fresh [f y]
+             (gen-typingo [] [] ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['v y]])])] q)))
+
+;; two
+(run 1 [q] (nom/fresh [f y]
+             (gen-typingo [] [] ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['v f] ['v y]]])])] q)))
+
+;; three
+(run 1 [q] (nom/fresh [f y]
+             (gen-typingo [] [] ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['v f] ['ap ['v f] ['v y]]]])])] q)))
+
+;; synth-add
+(run 1 [succ succ-T]
+  (nom/fresh [f y n]
+    (fresh [zero one two three -succ zero-T one-T]
+      (== zero ['λ (nom/tie f ['λ (nom/tie y ['v y])])])
+      (== one ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['v y]])])])
+      (== two ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['v f] ['v y]]])])])
+      (== three ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['v f] ['ap ['v f] ['v y]]]])])])
+      (== -succ ['λ (nom/tie n ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['ap ['v n] ['v f] ] ['v y]]])])])])
+      (== one-T zero-T)
+      (gen-typingo [] [] one one-T)
+      (gen-typingo [] [] zero zero-T)
+
+      ;; (call-by-nameo ['ap ['ap add zero] two] two)
+      ;; (call-by-nameo ['ap ['ap add two] zero] two)
+      ;; (call-by-nameo ['ap ['ap add one] two] three)
+      ;; (== one-T zero-T)
+      ;; (call-by-nameo ['ap ['ap ['v n] ['v f] ] ['v y]] succ)
+      (call-by-nameo succ succ)
+      (call-by-nameo ['ap succ one] two)
+      (call-by-nameo ['ap succ two] three)
+      (call-by-nameo ['ap succ one] two)
+      )))
 
 (run 1 [e T]
   (fresh [const-true const-false t0 t1]
@@ -381,12 +464,30 @@
     (call-by-nameo ['ap const-true false] true)
     (call-by-nameo ['ap const-false true] false)
     (call-by-nameo ['ap const-false false] false)
+    ;; (call-by-nameo ['ap flip true] false)
+    ;; (call-by-nameo ['ap flip false] true)
     (gen-typingo [] [] const-true t0)
     (gen-typingo [] [] const-false t1)
     (gen-typingo [] [] e T)
     (call-by-nameo ['ap ['ap e false] true] true)))
 
-(run 1 [e T]
-  (nom/fresh [x]
-    (gen-typingo [] [] ['λ (nom/tie x true)]  T)))
 
+(time (first (run 1 [prev-two q one]
+                             (nom/fresh [f y n]
+                               (fresh [zero two three -succ zero-T one-T]
+                                 (== zero ['λ (nom/tie f ['λ (nom/tie y ['v y])])])
+                                 (== one ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['v y]])])])
+                                 (== two ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['v f] ['v y]]])])])
+                                 (== three ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['v f] ['ap ['v f] ['v y]]]])])])
+                                 (== -succ ['λ (nom/tie n ['λ (nom/tie f ['λ (nom/tie y ['ap ['v f] ['ap ['ap ['v n] ['v f] ] ['v y]]])])])])
+                                 (== one-T zero-T)
+                                 (gen-typingo [] [] one one-T)
+                                 (gen-typingo [] [] zero zero-T)
+
+                                 ;; (call-by-nameo ['ap ['ap add zero] two] two)
+                                 ;; (call-by-nameo ['ap ['ap add two] zero] two)
+                                 ;; (call-by-nameo ['ap ['ap add one] two] three)
+                                 ;; (== one-T zero-T)
+                                 ;; (call-by-nameo ['ap ['ap ['v n] ['v f] ] ['v y]] succ)
+                                 (call-by-nameo ['ap -succ prev-two] two) (call-by-nameo ['ap -succ prev-two] q)
+                                 )))))
