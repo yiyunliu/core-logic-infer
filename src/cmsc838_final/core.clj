@@ -335,6 +335,8 @@
   ([true true])
   ([false false])
 
+  ([['v x] e])
+
   ([['ap ?e0 ?e1] _]
    (nom/fresh [x]
      (fresh [?body ?e-subst]
@@ -343,7 +345,6 @@
          (substo x ?e1 ?body ?e-subst)
          (call-by-nameo ?e-subst e-nf))
         ((fresh [y ?e1-out]
-           (nom/hash y e)
            (call-by-nameo ?e0 ['v y])
            (call-by-nameo ?e1 ?e1-out)
            (== e-nf ['ap ['v y] ?e1-out])))))))
