@@ -306,3 +306,86 @@
                       ['ap ['λ (nom/tie x ['v x])] ['λ (nom/tie x ['λ (nom/tie y ['v x])])]]
                       ['∏ (nom/tie x ['∏ (nom/tie y [['v x] '-> [['v y] '-> ['v x]]])])])))
 
+
+(run 20 [q] (fresh [t]
+             (gen-typingo [] [] q t)))
+
+(defne substo [x e body out]
+  ([_ _ ['v x] e])
+  ([_ _ _ body]
+   (nom/hash x body))
+  ([_ _ _ _]
+   (nom/fresh [y]
+     (fresh [?body ?out]
+       (== ['λ (nom/tie y ?body)] body)
+       (substo x e ?body ?out)
+       (== out ['λ (nom/tie y ?out)]))))
+  ([_ _ _ _]
+   (nom/fresh [y]
+     (fresh [?body ?out ?A]
+       (== ['λ ?A (nom/tie y ?body)] body)
+       (substo x e ?body ?out)
+       (== out ['λ ?A (nom/tie y ?out)]))))
+  ([_ _ ['ap ?e0 ?e1] ['ap ?e0-out ?e1-out]]
+   (substo x e ?e0 ?e0-out)
+   (substo x e ?e1 ?e1-out)))
+
+
+(defne call-by-nameo [e e-nf]
+  ([true true])
+  ([false false])
+
+  ([['ap ?e0 ?e1] _]
+   (nom/fresh [x]
+     (fresh [?body ?e-subst]
+       (conde
+        ((call-by-nameo ?e0 ['λ (nom/tie x ?body)])
+         (substo x ?e1 ?body ?e-subst)
+         (call-by-nameo ?e-subst e-nf))
+        ((fresh [y ?e1-out]
+           (nom/hash y e)
+           (call-by-nameo ?e0 ['v y])
+           (call-by-nameo ?e1 ?e1-out)
+           (== e-nf ['ap ['v y] ?e1-out])))))))
+
+  ([_ _]
+   (nom/fresh [x]
+     (fresh [?body ?body-out]
+       (== e ['λ (nom/tie x ?body)])
+       (call-by-nameo ?body ?body-out)
+       (== e-nf ['λ (nom/tie x ?body-out)]))))
+  ([_ _]
+   (nom/fresh [x]
+     (fresh [?A ?body ?body-out]
+       (== e ['λ ?A (nom/tie x ?body)])
+       (call-by-nameo ?body ?body-out)
+       (== e-nf ['λ ?A (nom/tie x ?body-out)])))))
+
+(run 1 [e T]
+  (gen-typingo [] [] e T)
+  (call-by-nameo ['ap ['ap e false] true] true))
+
+(run 1 [e T]
+  (call-by-nameo ['ap ['ap e false] true] true)
+  (gen-typingo [] [] e T))
+
+;; (run 1 [e T]
+;;   (call-by-nameo ['ap e true] true)
+;;   (call-by-nameo ['ap e false] true)
+;;   (gen-typingo [] [] e T))
+
+(run 1 [e T]
+  (fresh [const-true const-false t0 t1]
+    (call-by-nameo ['ap const-true true] true)
+    (call-by-nameo ['ap const-true false] true)
+    (call-by-nameo ['ap const-false true] false)
+    (call-by-nameo ['ap const-false false] false)
+    (gen-typingo [] [] const-true t0)
+    (gen-typingo [] [] const-false t1)
+    (gen-typingo [] [] e T)
+    (call-by-nameo ['ap ['ap e false] true] true)))
+
+(run 1 [e T]
+  (nom/fresh [x]
+    (gen-typingo [] [] ['λ (nom/tie x true)]  T)))
+
